@@ -1,0 +1,22 @@
+module CursedSoul
+{
+    imports {
+        Base
+    }
+    item CursedSoul
+    {
+        DisplayCategory = Accessory,
+        Type = Clothing,
+        DisplayName = Cursed Soul,
+        ClothingItem = WristWatch_Right_DigitalBlack,
+        BodyLocation = RightWrist,
+        Icon = CursedSoul,
+        Weight = 0.2,
+        CanHaveHoles = false,
+        WorldStaticModel = WristWatch_Right_DigitalBlack,
+        CanBeRemoved = false,
+        CanBeDropped = false,
+        CanBeTransferred = false,
+        AlwaysWelcomeGift = true,
+    }
+}
