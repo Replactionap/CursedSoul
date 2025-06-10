@@ -1,0 +1,3 @@
+ItemName_EN = {
+	ItemName_CursedSoul.CursedSoul = "Cursed Soul",
+}

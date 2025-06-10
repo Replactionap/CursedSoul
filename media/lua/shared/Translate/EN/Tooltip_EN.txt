@@ -1,0 +1,3 @@
+Tooltip_EN = {
+	Tooltip_CursedSoulDescription = "The curse prevents you from truly dying. Memories of all deaths weigh down your soul, causing burning pain, but along with it, transferring skills to the next life",
+}
