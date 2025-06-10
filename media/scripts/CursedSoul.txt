@@ -18,5 +18,6 @@ module CursedSoul
         CanBeDropped = false,
         CanBeTransferred = false,
         AlwaysWelcomeGift = true,
+        Tooltip = Сurse prevents you from dying completely.\nThe memories of all the deaths weigh down your soul, causing burning pain, but also passing on skills to the next life,
     }
 }
