@@ -217,3 +217,29 @@ local function CursedSoul_HideContextMenuOptions(player, context, items)
 end
 
 Events.OnFillInventoryObjectContextMenu.Add(CursedSoul_HideContextMenuOptions)
+
+-- Автоматически надеваем CursedSoul если он есть в инвентаре, но не надет
+local function autoWearCursedSoulIfNeeded()
+    local player = getPlayer()
+    if not player or player:isDead() then return end
+    local inv = player.getInventory and player:getInventory()
+    if not inv or not inv.FindAndReturn then return end
+    local item = inv:FindAndReturn("CursedSoul.CursedSoul")
+    if item and player.getWornItem and not player:getWornItem(item:getBodyLocation()) then
+        player:setWornItem(item:getBodyLocation(), item)
+    end
+end
+
+-- Добавляем автонатягивание при каждом обновлении игрока (после респавна)
+Events.OnPlayerUpdate.Add(autoWearCursedSoulIfNeeded)
+
+-- Также автонатягиваем при создании игрока (на всякий случай)
+Events.OnCreatePlayer.Add(function(playerIndex, player)
+    if not player or player:isDead() then return end
+    local inv = player.getInventory and player:getInventory()
+    if not inv or not inv.AddItem or not inv.FindAndReturn then return end
+    local item = inv:FindAndReturn("CursedSoul.CursedSoul")
+    if item and player.getWornItem and not player:getWornItem(item:getBodyLocation()) then
+        player:setWornItem(item:getBodyLocation(), item)
+    end
+end)

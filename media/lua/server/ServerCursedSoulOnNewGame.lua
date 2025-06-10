@@ -19,17 +19,6 @@ local function returnCursedSoulFromContainer(container, item)
     end
 end
 
--- Remove this block, it is not supported server-side and causes errors in multiplayer
---[ [
-Events.OnContainerUpdate.Add(function(container)
-    if not container then return end
-    for i=0, container:getItems():size()-1 do
-        local item = container:getItems():get(i)
-        returnCursedSoulFromContainer(container, item)
-    end
-end)
---] ]
-
 local function removeAllCursedSoulInContainersNearby(player)
     local square = player.getCurrentSquare and player:getCurrentSquare()
     if not square then return end
@@ -152,5 +141,45 @@ Events.OnTick.Add(function()
                 removeNearbyCursedSouls(player)
             end
         end
+    end
+end)
+
+-- Сохраняем XP всех навыков при смерти персонажа
+Events.OnPlayerDeath.Add(function(playerObj)
+    if not playerObj or not playerObj:getXp() then return end
+    local xp = playerObj:getXp()
+    local xpTable = {}
+    for i=0, PerkFactory.PerkList:size()-1 do
+        local perk = PerkFactory.PerkList:get(i)
+        local perkType = perk:getType()
+        xpTable[perkType] = xp:getXP(perkType)
+    end
+    local modData = ModData.getOrCreate("CursedSoul_SavedXP")
+    modData.savedXP = xpTable
+    modData.xpSavedFlag = true
+    ModData.transmit("CursedSoul_SavedXP")
+end)
+
+-- Используем OnCreatePlayer вместо OnNewGame для передачи опыта и выдачи CursedSoul
+Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
+    if not playerObj or not playerObj:getInventory() then return end
+    local modData = ModData.getOrCreate("CursedSoul_SavedXP")
+    if modData.xpSavedFlag then
+        playerObj:getInventory():AddItem("CursedSoul.CursedSoul")
+        -- Восстанавливаем XP сразу
+        local savedXP = modData.savedXP
+        if savedXP and playerObj:getXp() then
+            local xp = playerObj:getXp()
+            for perkType, amount in pairs(savedXP) do
+                local current = xp:getXP(perkType)
+                local diff = amount - current
+                if diff > 0 then
+                    xp:AddXP(perkType, diff)
+                end
+            end
+            modData.savedXP = nil
+            ModData.transmit("CursedSoul_SavedXP")
+        end
+        modData.xpSavedFlag = nil
     end
 end)
