@@ -70,7 +70,6 @@ local function removeNearbyCursedSouls(player)
                         end
                     end
                 end
-                -- Remove items from objects on the square
                 local containerObjs = sq.getObjects and sq:getObjects()
                 if containerObjs and containerObjs.size then
                     for i = containerObjs:size()-1, 0, -1 do
@@ -81,7 +80,6 @@ local function removeNearbyCursedSouls(player)
                         end
                     end
                 end
-                -- Remove items from containers (crates, fridges, etc.) via getContainers
                 if sq.getContainers then
                     local containers = sq:getContainers()
                     if containers and containers.size then
@@ -103,7 +101,6 @@ local function removeNearbyCursedSouls(player)
                         end
                     end
                 end
-                -- Remove items from IsoObject containers (works for singleplayer/multiplayer)
                 if containerObjs and containerObjs.size then
                     for i = 0, containerObjs:size() - 1 do
                         local obj = containerObjs:get(i)
@@ -130,7 +127,6 @@ local function removeNearbyCursedSouls(player)
     end
 end
 
--- Use OnTick to process all players safely on the server
 Events.OnTick.Add(function()
     local players = getOnlinePlayers and getOnlinePlayers()
     if players and players.size then
@@ -144,7 +140,6 @@ Events.OnTick.Add(function()
     end
 end)
 
--- Сохраняем XP всех навыков при смерти персонажа
 Events.OnPlayerDeath.Add(function(playerObj)
     if not playerObj or not playerObj:getXp() then return end
     local xp = playerObj:getXp()
@@ -160,13 +155,24 @@ Events.OnPlayerDeath.Add(function(playerObj)
     ModData.transmit("CursedSoul_SavedXP")
 end)
 
--- Используем OnCreatePlayer вместо OnNewGame для передачи опыта и выдачи CursedSoul
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     if modData.xpSavedFlag then
+        local inv = playerObj:getInventory()
+        local items = inv:getItems()
+        local toRemove = {}
+        for i = 0, items:size()-1 do
+            local item = items:get(i)
+            if item and item.getFullType and item:getFullType() == "CursedSoul.CursedSoul" then
+                table.insert(toRemove, item)
+            end
+        end
+        for _, item in ipairs(toRemove) do
+            inv:Remove(item)
+        end
+
         playerObj:getInventory():AddItem("CursedSoul.CursedSoul")
-        -- Восстанавливаем XP сразу
         local savedXP = modData.savedXP
         if savedXP and playerObj:getXp() then
             local xp = playerObj:getXp()

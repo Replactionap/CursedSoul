@@ -174,9 +174,7 @@ end
 
 Events.OnPlayerUpdate.Add(checkCursedSoulDropped)
 
--- Hide "Снять" (Unequip) and "Выкинуть" (Drop) for CursedSoul
 local function CursedSoul_HideContextMenuOptions(player, context, items)
-    -- Flatten items (handles both single and multi selection)
     local function getAllItems(tbl)
         local result = {}
         for _, entry in ipairs(tbl) do
@@ -207,7 +205,6 @@ local function CursedSoul_HideContextMenuOptions(player, context, items)
     end
     if not hasCursedSoul then return end
 
-    -- Remove "Снять" (Unequip) and "Выкинуть" (Drop) options
     for i = context.numOptions, 1, -1 do
         local opt = context.options[i]
         if opt and (opt.name == getText("ContextMenu_Unequip") or opt.name == getText("ContextMenu_Drop")) then
@@ -218,7 +215,6 @@ end
 
 Events.OnFillInventoryObjectContextMenu.Add(CursedSoul_HideContextMenuOptions)
 
--- Автоматически надеваем CursedSoul если он есть в инвентаре, но не надет
 local function autoWearCursedSoulIfNeeded()
     local player = getPlayer()
     if not player or player:isDead() then return end
@@ -230,16 +226,27 @@ local function autoWearCursedSoulIfNeeded()
     end
 end
 
--- Добавляем автонатягивание при каждом обновлении игрока (после респавна)
 Events.OnPlayerUpdate.Add(autoWearCursedSoulIfNeeded)
 
--- Также автонатягиваем при создании игрока (на всякий случай)
 Events.OnCreatePlayer.Add(function(playerIndex, player)
     if not player or player:isDead() then return end
     local inv = player.getInventory and player:getInventory()
     if not inv or not inv.AddItem or not inv.FindAndReturn then return end
     local item = inv:FindAndReturn("CursedSoul.CursedSoul")
     if item and player.getWornItem and not player:getWornItem(item:getBodyLocation()) then
-        player:setWornItem(item:getBodyLocation(), item)
+        timer = timer or {}
+        if timer[playerIndex] then Events.OnPlayerUpdate.Remove(timer[playerIndex]) end
+        timer[playerIndex] = function()
+            local p = getSpecificPlayer(playerIndex)
+            if not p or p:isDead() then Events.OnPlayerUpdate.Remove(timer[playerIndex]) return end
+            local inv2 = p.getInventory and p:getInventory()
+            if not inv2 or not inv2.FindAndReturn then Events.OnPlayerUpdate.Remove(timer[playerIndex]) return end
+            local item2 = inv2:FindAndReturn("CursedSoul.CursedSoul")
+            if item2 and p.getWornItem and not p:getWornItem(item2:getBodyLocation()) then
+                p:setWornItem(item2:getBodyLocation(), item2)
+                Events.OnPlayerUpdate.Remove(timer[playerIndex])
+            end
+        end
+        Events.OnPlayerUpdate.Add(timer[playerIndex])
     end
 end)
