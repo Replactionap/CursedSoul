@@ -173,3 +173,47 @@ local function checkCursedSoulDropped()
 end
 
 Events.OnPlayerUpdate.Add(checkCursedSoulDropped)
+
+-- Hide "Снять" (Unequip) and "Выкинуть" (Drop) for CursedSoul
+local function CursedSoul_HideContextMenuOptions(player, context, items)
+    -- Flatten items (handles both single and multi selection)
+    local function getAllItems(tbl)
+        local result = {}
+        for _, entry in ipairs(tbl) do
+            if type(entry) == "table" and entry.items then
+                for _, it in ipairs(entry.items) do
+                    table.insert(result, it)
+                end
+            else
+                table.insert(result, entry)
+            end
+        end
+        return result
+    end
+
+    local allItems = getAllItems(items)
+    local hasCursedSoul = false
+    for _, item in ipairs(allItems) do
+        local realItem = item
+        if type(item) == "table" and item.getFullType then
+            realItem = item
+        elseif item and item.items and #item.items > 0 then
+            realItem = item.items[1]
+        end
+        if realItem and realItem.getFullType and realItem:getFullType() == "CursedSoul.CursedSoul" then
+            hasCursedSoul = true
+            break
+        end
+    end
+    if not hasCursedSoul then return end
+
+    -- Remove "Снять" (Unequip) and "Выкинуть" (Drop) options
+    for i = context.numOptions, 1, -1 do
+        local opt = context.options[i]
+        if opt and (opt.name == getText("ContextMenu_Unequip") or opt.name == getText("ContextMenu_Drop")) then
+            context:removeOptionByName(opt.name)
+        end
+    end
+end
+
+Events.OnFillInventoryObjectContextMenu.Add(CursedSoul_HideContextMenuOptions)
