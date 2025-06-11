@@ -152,6 +152,15 @@ Events.OnPlayerDeath.Add(function(playerObj)
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     modData.savedXP = xpTable
     modData.xpSavedFlag = true
+
+    -- Save weight
+    if playerObj.getNutrition then
+        local nutrition = playerObj:getNutrition()
+        if nutrition and nutrition.getWeight then
+            modData.savedWeight = nutrition:getWeight()
+        end
+    end
+
     ModData.transmit("CursedSoul_SavedXP")
 end)
 
@@ -186,6 +195,41 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             modData.savedXP = nil
             ModData.transmit("CursedSoul_SavedXP")
         end
+
+        -- Restore weight
+        if modData.savedWeight and playerObj.getNutrition then
+            local nutrition = playerObj:getNutrition()
+            if nutrition and nutrition.setWeight then
+                nutrition:setWeight(modData.savedWeight)
+            end
+            modData.savedWeight = nil
+            ModData.transmit("CursedSoul_SavedXP")
+        end
+
+        -- Sync traits with weight
+        if playerObj.getNutrition and playerObj.getTraits then
+            local nutrition = playerObj:getNutrition()
+            local traits = playerObj:getTraits()
+            if nutrition and traits then
+                local weight = nutrition:getWeight()
+                -- Remove all weight-related traits
+                traits:remove("Obese")
+                traits:remove("Overweight")
+                traits:remove("Underweight")
+                traits:remove("Emaciated")
+                -- Add trait based on weight
+                if weight >= 105 then
+                    traits:add("Obese")
+                elseif weight >= 90 then
+                    traits:add("Overweight")
+                elseif weight <= 65 then
+                    traits:add("Emaciated")
+                elseif weight <= 75 then
+                    traits:add("Underweight")
+                end
+            end
+        end
+
         modData.xpSavedFlag = nil
     end
 end)
