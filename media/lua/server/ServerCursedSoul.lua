@@ -140,6 +140,37 @@ Events.OnTick.Add(function()
     end
 end)
 
+local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
+    if not playerObj or not playerObj:getXp() then return end
+    local xp = playerObj:getXp()
+    if type(modData.lastLifeGainedXP) == "table" then
+        for perkType, gained in pairs(modData.lastLifeGainedXP) do
+            if gained > 0 then
+                local base = currentStartXP[perkType] or 0
+                local current = xp:getXP(perkType)
+                local target = base + gained
+                if current < target then
+                    -- Debug print (можно убрать)
+                    -- print("Restoring XP for", perkType, "adding", (target - current))
+                    xp:AddXP(perkType, target - current)
+                end
+            end
+        end
+    end
+end
+
+local function onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
+    -- Задержка 1 тик, чтобы избежать конфликтов с другими инициализациями
+    local ticks = 0
+    Events.OnTick.Add(function()
+        ticks = ticks + 1
+        if ticks >= 2 then
+            restoreCursedSoulXP(playerObj, modData, currentStartXP)
+            return true -- удаляет этот обработчик
+        end
+    end)
+end
+
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
@@ -152,17 +183,14 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         currentStartXP[perkType] = xp:getXP(perkType)
     end
 
-    if type(modData.lastLifeGainedXP) == "table" then
-        for perkType, gained in pairs(modData.lastLifeGainedXP) do
-            if gained > 0 then
-                local base = currentStartXP[perkType] or 0
-                local current = xp:getXP(perkType)
-                local target = base + gained
-                if current < target then
-                    xp:AddXP(perkType, target - current)
-                end
-            end
-        end
+    -- Вместо немедленного восстановления XP, делаем это с задержкой
+    onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
+
+    -- Восстановление количества убитых зомби
+    if modData.savedZombieKills and playerObj.setZombieKills then
+        playerObj:setZombieKills(modData.savedZombieKills)
+        modData.savedZombieKills = nil
+        ModData.transmit("CursedSoul_SavedXP")
     end
 
     modData.currentStartXP = {}
@@ -253,6 +281,14 @@ Events.OnPlayerDeath.Add(function(playerObj)
         if nutrition and nutrition.getWeight then
             modData.savedWeight = nutrition:getWeight()
         end
+    end
+
+    -- Сохраняем количество убитых зомби
+    if playerObj.getZombieKills then
+        local kills = playerObj:getZombieKills()
+        local modData = ModData.getOrCreate("CursedSoul_SavedXP")
+        modData.savedZombieKills = kills
+        ModData.transmit("CursedSoul_SavedXP")
     end
 
     ModData.transmit("CursedSoul_SavedXP")
