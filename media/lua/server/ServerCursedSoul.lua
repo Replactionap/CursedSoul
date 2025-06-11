@@ -140,34 +140,38 @@ Events.OnTick.Add(function()
     end
 end)
 
-Events.OnPlayerDeath.Add(function(playerObj)
-    if not playerObj or not playerObj:getXp() then return end
-    local xp = playerObj:getXp()
-    local xpTable = {}
-    for i=0, PerkFactory.PerkList:size()-1 do
-        local perk = PerkFactory.PerkList:get(i)
-        local perkType = perk:getType()
-        xpTable[perkType] = xp:getXP(perkType)
-    end
-    local modData = ModData.getOrCreate("CursedSoul_SavedXP")
-    modData.savedXP = xpTable
-    modData.xpSavedFlag = true
-
-    -- Save weight
-    if playerObj.getNutrition then
-        local nutrition = playerObj:getNutrition()
-        if nutrition and nutrition.getWeight then
-            modData.savedWeight = nutrition:getWeight()
-        end
-    end
-
-    ModData.transmit("CursedSoul_SavedXP")
-end)
-
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
-    if modData.xpSavedFlag then
+
+    local xp = playerObj:getXp()
+    local currentStartXP = {}
+    for i=0, PerkFactory.PerkList:size()-1 do
+        local perk = PerkFactory.PerkList:get(i)
+        local perkType = perk:getType()
+        currentStartXP[perkType] = xp:getXP(perkType)
+    end
+
+    if type(modData.lastLifeGainedXP) == "table" then
+        for perkType, gained in pairs(modData.lastLifeGainedXP) do
+            if gained > 0 then
+                local base = currentStartXP[perkType] or 0
+                local current = xp:getXP(perkType)
+                local target = base + gained
+                if current < target then
+                    xp:AddXP(perkType, target - current)
+                end
+            end
+        end
+    end
+
+    modData.currentStartXP = {}
+    for k, v in pairs(currentStartXP) do
+        modData.currentStartXP[k] = v
+    end
+    ModData.transmit("CursedSoul_SavedXP")
+
+    if modData.xpSavedFlag and type(modData.savedXP) == "table" and type(modData.currentStartXP) == "table" then
         local inv = playerObj:getInventory()
         local items = inv:getItems()
         local toRemove = {}
@@ -182,21 +186,11 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         end
 
         playerObj:getInventory():AddItem("CursedSoul.CursedSoul")
-        local savedXP = modData.savedXP
-        if savedXP and playerObj:getXp() then
-            local xp = playerObj:getXp()
-            for perkType, amount in pairs(savedXP) do
-                local current = xp:getXP(perkType)
-                local diff = amount - current
-                if diff > 0 then
-                    xp:AddXP(perkType, diff)
-                end
-            end
-            modData.savedXP = nil
-            ModData.transmit("CursedSoul_SavedXP")
-        end
 
-        -- Restore weight
+        modData.savedXP = nil
+        modData.xpSavedFlag = nil
+        ModData.transmit("CursedSoul_SavedXP")
+
         if modData.savedWeight and playerObj.getNutrition then
             local nutrition = playerObj:getNutrition()
             if nutrition and nutrition.setWeight then
@@ -206,18 +200,15 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             ModData.transmit("CursedSoul_SavedXP")
         end
 
-        -- Sync traits with weight
         if playerObj.getNutrition and playerObj.getTraits then
             local nutrition = playerObj:getNutrition()
             local traits = playerObj:getTraits()
             if nutrition and traits then
                 local weight = nutrition:getWeight()
-                -- Remove all weight-related traits
                 traits:remove("Obese")
                 traits:remove("Overweight")
                 traits:remove("Underweight")
                 traits:remove("Emaciated")
-                -- Add trait based on weight
                 if weight >= 105 then
                     traits:add("Obese")
                 elseif weight >= 90 then
@@ -229,7 +220,40 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
                 end
             end
         end
-
-        modData.xpSavedFlag = nil
     end
+end)
+
+Events.OnPlayerDeath.Add(function(playerObj)
+    if not playerObj or not playerObj:getXp() then return end
+    local xp = playerObj:getXp()
+    local xpTable = {}
+    for i=0, PerkFactory.PerkList:size()-1 do
+        local perk = PerkFactory.PerkList:get(i)
+        local perkType = perk:getType()
+        xpTable[perkType] = xp:getXP(perkType)
+    end
+    local modData = ModData.getOrCreate("CursedSoul_SavedXP")
+    modData.savedXP = xpTable
+    modData.xpSavedFlag = true
+
+    modData.lastLifeGainedXP = {}
+    local startXP = modData.currentStartXP or {}
+    for perkType, deathAmount in pairs(xpTable) do
+        local startAmount = startXP[perkType] or 0
+        local gained = deathAmount - startAmount
+        if gained > 0 then
+            modData.lastLifeGainedXP[perkType] = gained
+        else
+            modData.lastLifeGainedXP[perkType] = 0
+        end
+    end
+
+    if playerObj.getNutrition then
+        local nutrition = playerObj:getNutrition()
+        if nutrition and nutrition.getWeight then
+            modData.savedWeight = nutrition:getWeight()
+        end
+    end
+
+    ModData.transmit("CursedSoul_SavedXP")
 end)
