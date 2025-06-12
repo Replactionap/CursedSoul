@@ -250,3 +250,25 @@ Events.OnCreatePlayer.Add(function(playerIndex, player)
         Events.OnPlayerUpdate.Add(timer[playerIndex])
     end
 end)
+
+local function enforceCursedSoulOnWrist()
+    local player = getPlayer()
+    if not player or player:isDead() then return end
+    local inv = player.getInventory and player:getInventory()
+    if not inv or not inv.FindAndReturn then return end
+
+    local cursedSoul = inv:FindAndReturn("CursedSoul.CursedSoul")
+    if not cursedSoul then return end
+
+    local wornItem = player.getWornItem and player:getWornItem("RightWrist")
+    if not wornItem or (wornItem and wornItem:getFullType() ~= "CursedSoul.CursedSoul") then
+        if wornItem and wornItem:getFullType() ~= "CursedSoul.CursedSoul" then
+            inv:Remove(wornItem)
+            player:removeWornItem(wornItem)
+            inv:AddItem(wornItem:getFullType())
+        end
+        player:setWornItem("RightWrist", cursedSoul)
+    end
+end
+
+Events.OnPlayerUpdate.Add(enforceCursedSoulOnWrist)
