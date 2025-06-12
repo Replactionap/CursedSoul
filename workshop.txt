@@ -1,0 +1,62 @@
+version=1.4
+id=3496643519
+title=Cursed Soul (Don't lose skills after death)
+description=[b]🕯️ Cursed Soul — The Immortal Soul[/b]
+
+[quote]Death is not the end — only a new beginning...[/quote]
+
+[b]Cursed Soul[/b] adds [i]soul transmigration[/i] to [b]Project Zomboid[/b]. When you die, your character is reborn — all skills and experience are retained. (Without taking into account starting skills)
+
+[hr]
+
+[b]🔥 Features[/b]
+
+[b]☠️ Rebirth After Death[/b]  
+Your soul lives on. When you die, you respawn as a new character — with all your skills.
+
+[b]📘 Experience Retention[/b]  
+All learned skills and XP are fully preserved.
+
+[b]📅 Long-Term Playthrough Friendly[/b]  
+Perfect for campaigns where you want to keep growing without losing progress.
+
+[b]🌐 Multiplayer Ready[/b]  
+Fully compatible with both [b]Singleplayer[/b] and [b]Multiplayer[/b].
+
+[hr]
+
+[b]🤔 A Curse or a Gift?[/b]
+
+Your soul is cursed to wander from one body to the next.  
+Each new life is another chance — but also a reminder of past failures.  
+How many bodies will you inhabit before you truly die?
+
+[hr]
+
+[b]🛠️ Compatibility[/b]
+
+[b]Singleplayer:[/b] ✅  
+[b]Multiplayer:[/b] ✅  
+[b]Build 42:[/b] ❓
+
+[hr]
+
+[b]📦 Technical Info[/b]
+
+[b]Workshop ID:[/b] 3496643519  
+[b]Mod ID:[/b] Cursed Soul
+
+[hr]
+
+[b]🐞 Found a Bug?[/b]
+
+Let me know in the comments — I’ll fix it!
+
+[hr]
+
+[i]🧟 Embrace the curse. Cheat death. Begin again...[/i]
+
+Workshop ID: 3496643519
+Mod ID: Cursed Soul
+tags=Build 41;Items;Misc;Multiplayer
+visibility=public
