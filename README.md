@@ -1,58 +1,60 @@
-# 🕯️ Cursed Soul – Immortality Has Its Price
+# 🕯️ Cursed Soul — The Immortal Soul
 
-**Death is not the end — merely a transition.**  
-This mod introduces the concept of the **Cursed Soul**: an immortal essence that drifts from body to body after each death.
+> Death is not the end — only a new beginning...
 
----
-
-## 🧬 Features
-
-- 🔁 **Immortal Soul**  
-  Upon death, your character is reborn in a new body — death no longer means the end.
-
-- 🎓 **Progress Retention**  
-  All skills, experience, and learned abilities are preserved and transferred to your new vessel.
-
-- 📦 **(Planned) Weight Transfer**  
-  In the future, your carried weight and inventory state will persist across transitions.
-
-- 🧠 **(Planned) Independent of Starting Preset**  
-  Your soul remembers who you were — regardless of your new body’s traits or backstory.
+## Cursed Soul
+*Cursed Soul* adds *soul transmigration* to **Project Zomboid**.  
+When you die, your character is reborn — all skills and experience are retained.  
+(Without taking into account starting skills)
 
 ---
 
-## 🧭 Perfect for Long-Term Survival
+## 🔥 Features
 
-Whether you're in a sprawling solo campaign or a gritty multiplayer saga, this mod keeps the challenge alive without wiping your progress. Every death becomes a new chapter — not the end of the story.
+### ☠️ Rebirth After Death  
+Your soul lives on. When you die, you respawn as a new character — with all your skills.
 
-> 🗨️ *Your soul is doomed to wander endlessly from one body to the next. Whether it’s a curse or a gift — that’s for you to decide.*
+### 📘 Experience Retention  
+All learned skills and XP are fully preserved.
 
----
+### 📅 Long-Term Playthrough Friendly  
+Perfect for campaigns where you want to keep growing without losing progress.
 
-## ✅ Compatibility
-
-- **Singleplayer**: ✔️  
-- **Multiplayer**: ✔️  
-- **Build 42**: ❓ *(Pending full compatibility testing)*
-
----
-
-## 🔧 Technical Info
-
-- **Workshop ID**: `3496643519`  
-- **Mod ID**: `CursedSoul`
+### 🌐 Multiplayer Ready  
+Fully compatible with both **Singleplayer** and **Multiplayer**.
 
 ---
 
-## 💡 Future Plans
+## 🤔 A Curse or a Gift?
 
-- Full support for Build 42  
-- Inventory and equipped item retention  
-- Customizable soul behavior and difficulty settings  
-- Trait-based variations in soul transfer (e.g., negative effects, memory loss)
+Your soul is cursed to wander from one body to the next.  
+Each new life is another chance — but also a reminder of past failures.  
+How many bodies will you inhabit before you truly die?
 
 ---
 
-## 📩 Feedback & Suggestions
+## 🛠️ Compatibility
 
-Have an idea or found a bug? Leave feedback on the Steam Workshop page or join the discussion in the modding community!
+- **Singleplayer:** ✅  
+- **Multiplayer:** ✅  
+- **Build 42:** ❓
+
+---
+
+## 📦 Technical Info
+
+- **Workshop ID:** 3496643519  
+- **Mod ID:** Cursed Soul
+
+---
+
+## 🐞 Found a Bug?
+
+Let me know in the comments — I’ll fix it!
+
+---
+
+*🧟 Embrace the curse. Cheat death. Begin again...*
+
+**Workshop ID:** 3496643519  
+**Mod ID:** Cursed Soul
