@@ -59,7 +59,6 @@ local function removeNearbyCursedSouls(player)
         for y = math.floor(py - radius), math.ceil(py + radius) do
             local sq = cell:getGridSquare(x, y, pz)
             if sq then
-                -- Remove items from ground
                 local floorItems = sq.getWorldObjects and sq:getWorldObjects()
                 if floorItems and floorItems.size then
                     for i = floorItems:size()-1, 0, -1 do
@@ -140,6 +139,8 @@ Events.OnTick.Add(function()
     end
 end)
 
+CursedSoulDebug = false
+
 local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
     if not playerObj or not playerObj:getXp() then return end
     local xp = playerObj:getXp()
@@ -150,9 +151,25 @@ local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
                 local current = xp:getXP(perkType)
                 local target = base + gained
                 if current < target then
-                    -- Debug print (можно убрать)
-                    -- print("Restoring XP for", perkType, "adding", (target - current))
-                    xp:AddXP(perkType, target - current)
+                    local addAmount = target - current
+                    if CursedSoulDebug then
+                        print("[CursedSoul][DEBUG] Restoring XP for perk: " .. tostring(perkType))
+                        print("[CursedSoul][DEBUG] XP before: " .. tostring(current))
+                        print("[CursedSoul][DEBUG] XP to add: " .. tostring(addAmount))
+                    end
+                    xp:AddXP(perkType, addAmount, false, false, true)
+                    local after = xp:getXP(perkType)
+                    if CursedSoulDebug then
+                        print("[CursedSoul][DEBUG] XP after: " .. tostring(after))
+                    end
+                else
+                    if CursedSoulDebug then
+                        print("[CursedSoul][DEBUG] No XP needs to be added for perk " .. tostring(perkType) .. " (current: " .. tostring(current) .. ", target: " .. tostring(target) .. ")")
+                    end
+                end
+            else
+                if CursedSoulDebug then
+                    print("[CursedSoul][DEBUG] No XP needs to be added for perk " .. tostring(perkType) .. " (gained = 0)")
                 end
             end
         end
@@ -160,13 +177,12 @@ local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
 end
 
 local function onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
-    -- Задержка 1 тик, чтобы избежать конфликтов с другими инициализациями
     local ticks = 0
     Events.OnTick.Add(function()
         ticks = ticks + 1
         if ticks >= 2 then
             restoreCursedSoulXP(playerObj, modData, currentStartXP)
-            return true -- удаляет этот обработчик
+            return true
         end
     end)
 end
@@ -183,10 +199,8 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         currentStartXP[perkType] = xp:getXP(perkType)
     end
 
-    -- Вместо немедленного восстановления XP, делаем это с задержкой
     onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
 
-    -- Восстановление количества убитых зомби
     if modData.savedZombieKills and playerObj.setZombieKills then
         playerObj:setZombieKills(modData.savedZombieKills)
         modData.savedZombieKills = nil
@@ -283,7 +297,6 @@ Events.OnPlayerDeath.Add(function(playerObj)
         end
     end
 
-    -- Сохраняем количество убитых зомби
     if playerObj.getZombieKills then
         local kills = playerObj:getZombieKills()
         local modData = ModData.getOrCreate("CursedSoul_SavedXP")
