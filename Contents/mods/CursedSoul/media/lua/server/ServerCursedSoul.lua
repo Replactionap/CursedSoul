@@ -149,27 +149,8 @@ local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
             if gained > 0 then
                 local base = currentStartXP[perkType] or 0
                 local current = xp:getXP(perkType)
-                local target = base + gained
-                if current < target then
-                    local addAmount = target - current
-                    if CursedSoulDebug then
-                        print("[CursedSoul][DEBUG] Restoring XP for perk: " .. tostring(perkType))
-                        print("[CursedSoul][DEBUG] XP before: " .. tostring(current))
-                        print("[CursedSoul][DEBUG] XP to add: " .. tostring(addAmount))
-                    end
-                    xp:AddXP(perkType, addAmount, false, false, true)
-                    local after = xp:getXP(perkType)
-                    if CursedSoulDebug then
-                        print("[CursedSoul][DEBUG] XP after: " .. tostring(after))
-                    end
-                else
-                    if CursedSoulDebug then
-                        print("[CursedSoul][DEBUG] No XP needs to be added for perk " .. tostring(perkType) .. " (current: " .. tostring(current) .. ", target: " .. tostring(target) .. ")")
-                    end
-                end
-            else
-                if CursedSoulDebug then
-                    print("[CursedSoul][DEBUG] No XP needs to be added for perk " .. tostring(perkType) .. " (gained = 0)")
+                if current < base + gained then
+                    xp:AddXP(perkType, (base + gained) - current, false, false, true)
                 end
             end
         end
@@ -187,7 +168,6 @@ local function onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
     end)
 end
 
--- Table to queue zombie kill restoration for players
 local CursedSoulZombieKillsQueue = {}
 
 local function tryRestoreZombieKills()
@@ -195,7 +175,6 @@ local function tryRestoreZombieKills()
         local playerObj = getSpecificPlayer(playerOnlineIndex)
         if playerObj and playerObj.setZombieKills and not playerObj:isDead() then
             playerObj:setZombieKills(data.kills)
-            -- Remove from queue after setting
             CursedSoulZombieKillsQueue[playerOnlineIndex] = nil
             if CursedSoulDebug then
                 print("[CursedSoul][DEBUG] Restored zombie kills for player index " .. tostring(playerOnlineIndex) .. ": " .. tostring(data.kills))
@@ -210,7 +189,14 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
 
-    if not modData.xpInitialized then
+    if modData.savedStartXP and not modData.currentStartXP then
+        modData.currentStartXP = {}
+        for k, v in pairs(modData.savedStartXP) do
+            modData.currentStartXP[k] = v
+        end
+    end
+
+    if not modData.currentStartXP or modData.needsResurrection then
         local xp = playerObj:getXp()
         local currentStartXP = {}
         for i=0, PerkFactory.PerkList:size()-1 do
@@ -219,19 +205,30 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             currentStartXP[perkType] = xp:getXP(perkType)
         end
 
-        onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
+        modData.currentStartXP = {}
+        for k, v in pairs(currentStartXP) do
+            modData.currentStartXP[k] = v
+        end
+        modData.savedStartXP = {}
+        for k, v in pairs(currentStartXP) do
+            modData.savedStartXP[k] = v
+        end
+        ModData.transmit("CursedSoul_SavedXP")
 
-        -- Instead of setting zombie kills directly, queue it for later
+        if modData.needsResurrection then
+            onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
+            modData.needsResurrection = nil
+            ModData.transmit("CursedSoul_SavedXP")
+        end
+    end
+
+    if not modData.xpInitialized then
         if modData.savedZombieKills then
             CursedSoulZombieKillsQueue[playerIndex] = { kills = modData.savedZombieKills }
             modData.savedZombieKills = nil
             ModData.transmit("CursedSoul_SavedXP")
         end
 
-        modData.currentStartXP = {}
-        for k, v in pairs(currentStartXP) do
-            modData.currentStartXP[k] = v
-        end
         modData.xpInitialized = true
         ModData.transmit("CursedSoul_SavedXP")
     end
@@ -300,17 +297,14 @@ Events.OnPlayerDeath.Add(function(playerObj)
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     modData.savedXP = xpTable
     modData.xpSavedFlag = true
+    modData.needsResurrection = true
 
     modData.lastLifeGainedXP = {}
     local startXP = modData.currentStartXP or {}
     for perkType, deathAmount in pairs(xpTable) do
         local startAmount = startXP[perkType] or 0
         local gained = deathAmount - startAmount
-        if gained > 0 then
-            modData.lastLifeGainedXP[perkType] = gained
-        else
-            modData.lastLifeGainedXP[perkType] = 0
-        end
+        modData.lastLifeGainedXP[perkType] = gained > 0 and gained or 0
     end
 
     if playerObj.getNutrition then
@@ -327,7 +321,13 @@ Events.OnPlayerDeath.Add(function(playerObj)
         ModData.transmit("CursedSoul_SavedXP")
     end
 
+    if modData.currentStartXP then
+        modData.savedStartXP = {}
+        for k, v in pairs(modData.currentStartXP) do
+            modData.savedStartXP[k] = v
+        end
+    end
+    
     modData.xpInitialized = nil
-
     ModData.transmit("CursedSoul_SavedXP")
 end)
