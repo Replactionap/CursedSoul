@@ -191,27 +191,30 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
 
-    local xp = playerObj:getXp()
-    local currentStartXP = {}
-    for i=0, PerkFactory.PerkList:size()-1 do
-        local perk = PerkFactory.PerkList:get(i)
-        local perkType = perk:getType()
-        currentStartXP[perkType] = xp:getXP(perkType)
-    end
+    if not modData.xpInitialized then
+        local xp = playerObj:getXp()
+        local currentStartXP = {}
+        for i=0, PerkFactory.PerkList:size()-1 do
+            local perk = PerkFactory.PerkList:get(i)
+            local perkType = perk:getType()
+            currentStartXP[perkType] = xp:getXP(perkType)
+        end
 
-    onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
+        onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
 
-    if modData.savedZombieKills and playerObj.setZombieKills then
-        playerObj:setZombieKills(modData.savedZombieKills)
-        modData.savedZombieKills = nil
+        if modData.savedZombieKills and playerObj.setZombieKills then
+            playerObj:setZombieKills(modData.savedZombieKills)
+            modData.savedZombieKills = nil
+            ModData.transmit("CursedSoul_SavedXP")
+        end
+
+        modData.currentStartXP = {}
+        for k, v in pairs(currentStartXP) do
+            modData.currentStartXP[k] = v
+        end
+        modData.xpInitialized = true
         ModData.transmit("CursedSoul_SavedXP")
     end
-
-    modData.currentStartXP = {}
-    for k, v in pairs(currentStartXP) do
-        modData.currentStartXP[k] = v
-    end
-    ModData.transmit("CursedSoul_SavedXP")
 
     if modData.xpSavedFlag and type(modData.savedXP) == "table" and type(modData.currentStartXP) == "table" then
         local inv = playerObj:getInventory()
@@ -303,6 +306,8 @@ Events.OnPlayerDeath.Add(function(playerObj)
         modData.savedZombieKills = kills
         ModData.transmit("CursedSoul_SavedXP")
     end
+
+    modData.xpInitialized = nil
 
     ModData.transmit("CursedSoul_SavedXP")
 end)
