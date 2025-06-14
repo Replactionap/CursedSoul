@@ -187,6 +187,25 @@ local function onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
     end)
 end
 
+-- Table to queue zombie kill restoration for players
+local CursedSoulZombieKillsQueue = {}
+
+local function tryRestoreZombieKills()
+    for playerOnlineIndex, data in pairs(CursedSoulZombieKillsQueue) do
+        local playerObj = getSpecificPlayer(playerOnlineIndex)
+        if playerObj and playerObj.setZombieKills and not playerObj:isDead() then
+            playerObj:setZombieKills(data.kills)
+            -- Remove from queue after setting
+            CursedSoulZombieKillsQueue[playerOnlineIndex] = nil
+            if CursedSoulDebug then
+                print("[CursedSoul][DEBUG] Restored zombie kills for player index " .. tostring(playerOnlineIndex) .. ": " .. tostring(data.kills))
+            end
+        end
+    end
+end
+
+Events.OnTick.Add(tryRestoreZombieKills)
+
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
@@ -202,8 +221,9 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
 
         onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
 
-        if modData.savedZombieKills and playerObj.setZombieKills then
-            playerObj:setZombieKills(modData.savedZombieKills)
+        -- Instead of setting zombie kills directly, queue it for later
+        if modData.savedZombieKills then
+            CursedSoulZombieKillsQueue[playerIndex] = { kills = modData.savedZombieKills }
             modData.savedZombieKills = nil
             ModData.transmit("CursedSoul_SavedXP")
         end
