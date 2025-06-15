@@ -192,23 +192,7 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
 
-    -- Если не удалось считать savedStartXP, считаем стартовый опыт по нулям
-    if (not modData.savedStartXP) and (not modData.currentStartXP) then
-        modData.currentStartXP = {}
-        for i=0, PerkFactory.PerkList:size()-1 do
-            local perk = PerkFactory.PerkList:get(i)
-            local perkType = perk:getType():toString()
-            modData.currentStartXP[perkType] = 0
-        end
-        modData.savedStartXP = {}
-        for k, v in pairs(modData.currentStartXP) do
-            modData.savedStartXP[k] = v
-        end
-        if CursedSoulDebug then
-            print("[CursedSoul][DEBUG] ModData not found, set all start XP to 0")
-        end
-        ModData.transmit("CursedSoul_SavedXP")
-    elseif modData.savedStartXP and not modData.currentStartXP then
+    if modData.savedStartXP and not modData.currentStartXP then
         modData.currentStartXP = {}
         for k, v in pairs(modData.savedStartXP) do
             modData.currentStartXP[k] = v
