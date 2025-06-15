@@ -188,18 +188,29 @@ end
 
 Events.OnTick.Add(tryRestoreZombieKills)
 
+local function getPlayerUniqueID(playerObj)
+    -- Используем только Username, он всегда уникальный на сервере
+    if playerObj and playerObj.getUsername then
+        return tostring(playerObj:getUsername())
+    end
+    return "unknown"
+end
+
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
+    local uniqueID = getPlayerUniqueID(playerObj)
+    modData[uniqueID] = modData[uniqueID] or {}
+    local playerData = modData[uniqueID]
 
-    if modData.savedStartXP and not modData.currentStartXP then
-        modData.currentStartXP = {}
-        for k, v in pairs(modData.savedStartXP) do
-            modData.currentStartXP[k] = v
+    if playerData.savedStartXP and not playerData.currentStartXP then
+        playerData.currentStartXP = {}
+        for k, v in pairs(playerData.savedStartXP) do
+            playerData.currentStartXP[k] = v
         end
     end
 
-    if not modData.currentStartXP or modData.needsResurrection then
+    if not playerData.currentStartXP or playerData.needsResurrection then
         local xp = playerObj:getXp()
         local currentStartXP = {}
         for i=0, PerkFactory.PerkList:size()-1 do
@@ -208,41 +219,41 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             currentStartXP[perkType] = xp:getXP(perk)
         end
 
-        modData.currentStartXP = {}
+        playerData.currentStartXP = {}
         for k, v in pairs(currentStartXP) do
-            modData.currentStartXP[k] = v
+            playerData.currentStartXP[k] = v
         end
-        modData.savedStartXP = {}
+        playerData.savedStartXP = {}
         for k, v in pairs(currentStartXP) do
-            modData.savedStartXP[k] = v
+            playerData.savedStartXP[k] = v
         end
         if CursedSoulDebug then
-            print("[CursedSoul][DEBUG] Saved currentStartXP:")
+            print("[CursedSoul][DEBUG] Saved currentStartXP for "..uniqueID..":")
             for k, v in pairs(currentStartXP) do
                 print("  " .. tostring(k) .. " = " .. tostring(v))
             end
         end
         ModData.transmit("CursedSoul_SavedXP")
 
-        if modData.needsResurrection then
-            onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
-            modData.needsResurrection = nil
+        if playerData.needsResurrection then
+            onPlayerCreatedRestoreXP(playerObj, playerData, currentStartXP)
+            playerData.needsResurrection = nil
             ModData.transmit("CursedSoul_SavedXP")
         end
     end
 
-    if not modData.xpInitialized then
-        if modData.savedZombieKills then
-            CursedSoulZombieKillsQueue[playerIndex] = { kills = modData.savedZombieKills }
-            modData.savedZombieKills = nil
+    if not playerData.xpInitialized then
+        if playerData.savedZombieKills then
+            CursedSoulZombieKillsQueue[playerIndex] = { kills = playerData.savedZombieKills }
+            playerData.savedZombieKills = nil
             ModData.transmit("CursedSoul_SavedXP")
         end
 
-        modData.xpInitialized = true
+        playerData.xpInitialized = true
         ModData.transmit("CursedSoul_SavedXP")
     end
 
-    if modData.xpSavedFlag and type(modData.savedXP) == "table" and type(modData.currentStartXP) == "table" then
+    if playerData.xpSavedFlag and type(playerData.savedXP) == "table" and type(playerData.currentStartXP) == "table" then
         local inv = playerObj:getInventory()
         local items = inv:getItems()
         local toRemove = {}
@@ -258,16 +269,16 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
 
         playerObj:getInventory():AddItem("CursedSoul.CursedSoul")
 
-        modData.savedXP = nil
-        modData.xpSavedFlag = nil
+        playerData.savedXP = nil
+        playerData.xpSavedFlag = nil
         ModData.transmit("CursedSoul_SavedXP")
 
-        if modData.savedWeight and playerObj.getNutrition then
+        if playerData.savedWeight and playerObj.getNutrition then
             local nutrition = playerObj:getNutrition()
             if nutrition and nutrition.setWeight then
-                nutrition:setWeight(modData.savedWeight)
+                nutrition:setWeight(playerData.savedWeight)
             end
-            modData.savedWeight = nil
+            playerData.savedWeight = nil
             ModData.transmit("CursedSoul_SavedXP")
         end
 
@@ -310,39 +321,41 @@ Events.OnPlayerDeath.Add(function(playerObj)
         end
     end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
-    modData.savedXP = xpTable
-    modData.xpSavedFlag = true
-    modData.needsResurrection = true
+    local uniqueID = getPlayerUniqueID(playerObj)
+    modData[uniqueID] = modData[uniqueID] or {}
+    local playerData = modData[uniqueID]
+    playerData.savedXP = xpTable
+    playerData.xpSavedFlag = true
+    playerData.needsResurrection = true
 
-    modData.lastLifeGainedXP = {}
-    local startXP = modData.currentStartXP or {}
+    playerData.lastLifeGainedXP = {}
+    local startXP = playerData.currentStartXP or {}
     for perkType, deathAmount in pairs(xpTable) do
         local startAmount = startXP[perkType] or 0
         local gained = deathAmount - startAmount
-        modData.lastLifeGainedXP[perkType] = gained > 0 and gained or 0
+        playerData.lastLifeGainedXP[perkType] = gained > 0 and gained or 0
     end
 
     if playerObj.getNutrition then
         local nutrition = playerObj:getNutrition()
         if nutrition and nutrition.getWeight then
-            modData.savedWeight = nutrition:getWeight()
+            playerData.savedWeight = nutrition:getWeight()
         end
     end
 
     if playerObj.getZombieKills then
         local kills = playerObj:getZombieKills()
-        local modData = ModData.getOrCreate("CursedSoul_SavedXP")
-        modData.savedZombieKills = kills
+        playerData.savedZombieKills = kills
         ModData.transmit("CursedSoul_SavedXP")
     end
 
-    if modData.currentStartXP then
-        modData.savedStartXP = {}
-        for k, v in pairs(modData.currentStartXP) do
-            modData.savedStartXP[k] = v
+    if playerData.currentStartXP then
+        playerData.savedStartXP = {}
+        for k, v in pairs(playerData.currentStartXP) do
+            playerData.savedStartXP[k] = v
         end
     end
     
-    modData.xpInitialized = nil
+    playerData.xpInitialized = nil
     ModData.transmit("CursedSoul_SavedXP")
 end)
