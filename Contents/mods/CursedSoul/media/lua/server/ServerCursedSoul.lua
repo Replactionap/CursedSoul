@@ -189,7 +189,6 @@ end
 Events.OnTick.Add(tryRestoreZombieKills)
 
 local function getPlayerUniqueID(playerObj)
-    -- Используем только Username, он всегда уникальный на сервере
     if playerObj and playerObj.getUsername then
         return tostring(playerObj:getUsername())
     end

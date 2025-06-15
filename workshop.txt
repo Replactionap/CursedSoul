@@ -1,4 +1,4 @@
-version=1.5
+version=1.6
 id=3496643519
 title=Cursed Soul (Don't lose skills after death)
 description=Your own soul, forever cursed to wander between the worlds of the living and the dead. This ethereal clump of consciousness and memory cannot find peace, transmigrating from one body to another after each death. All your knowledge, skills, and memories are contained within this incorporeal essence. The curse grants immortality of mind, but condemns you to eternal wandering in a world consumed by chaos.
