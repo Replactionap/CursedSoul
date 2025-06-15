@@ -139,7 +139,88 @@ Events.OnTick.Add(function()
     end
 end)
 
-CursedSoulDebug = false
+CursedSoulDebug = true
+
+-- Функция для проверки первого входа игрока
+local function isFirstTimePlayer(playerObj)
+    if not playerObj then
+        if CursedSoulDebug then
+            print("[CursedSoul][FirstLogin] playerObj is nil")
+        end
+        return false, {}
+    end
+    
+    -- Безопасно получаем имя игрока
+    local playerName = "unknown"
+    if playerObj.getUsername then
+        playerName = tostring(playerObj:getUsername()) or "unknown"
+    end
+    
+    local reasons = {}
+    
+    -- Если хотя бы одно условие указывает на то, что игрок уже играл - считаем его старым
+    
+    -- Проверка 1: Время выживания (в часах)
+    if playerObj.getHoursSurvived then
+        local success, hoursSurvived = pcall(function() return playerObj:getHoursSurvived() end)
+        if success and hoursSurvived then
+            if CursedSoulDebug then
+                print("[CursedSoul][FirstLogin] " .. playerName .. " - Hours survived: " .. tostring(hoursSurvived))
+            end
+            if hoursSurvived >= 0.1 then -- 6 минут или больше игрового времени
+                table.insert(reasons, "Hours survived >= 0.1 (" .. tostring(hoursSurvived) .. ")")
+                if CursedSoulDebug then
+                    print("[CursedSoul][FirstLogin] " .. playerName .. " is existing player - reason: Hours survived")
+                end
+                return false, reasons -- Игрок не новый
+            end
+        end
+    end
+    
+    -- Проверка 2: Количество убитых зомби
+    if playerObj.getZombieKills then
+        local success, zombieKills = pcall(function() return playerObj:getZombieKills() end)
+        if success and zombieKills then
+            if CursedSoulDebug then
+                print("[CursedSoul][FirstLogin] " .. playerName .. " - Zombie kills: " .. tostring(zombieKills))
+            end
+            if zombieKills > 0 then
+                table.insert(reasons, "Zombie kills > 0 (" .. tostring(zombieKills) .. ")")
+                if CursedSoulDebug then
+                    print("[CursedSoul][FirstLogin] " .. playerName .. " is existing player - reason: Zombie kills")
+                end
+                return false, reasons -- Игрок не новый
+            end
+        end
+    end
+    
+    -- Проверка 3: Инвентарь - у опытного игрока больше предметов
+    local success, inv = pcall(function() return playerObj:getInventory() end)
+    if success and inv then
+        local success2, items = pcall(function() return inv:getItems() end)
+        if success2 and items then
+            local success3, itemCount = pcall(function() return items:size() end)
+            if success3 and itemCount then
+                if CursedSoulDebug then
+                    print("[CursedSoul][FirstLogin] " .. playerName .. " - Inventory items: " .. tostring(itemCount))
+                end
+                if itemCount > 10 then -- Больше базового набора предметов
+                    table.insert(reasons, "Inventory items > 10 (" .. tostring(itemCount) .. ")")
+                    if CursedSoulDebug then
+                        print("[CursedSoul][FirstLogin] " .. playerName .. " is existing player - reason: Inventory size")
+                    end
+                    return false, reasons -- Игрок не новый
+                end
+            end
+        end
+    end
+    
+    -- Если все проверки пройдены и ни одна не указывает на опытного игрока
+    if CursedSoulDebug then
+        print("[CursedSoul][FirstLogin] " .. playerName .. " is NEW player - all checks passed")
+    end
+    return true, {}
+end
 
 local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
     if not playerObj or not playerObj:getXp() then return end
@@ -197,6 +278,67 @@ end
 
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
+    
+    -- Проверяем первый вход с задержкой для корректной загрузки данных
+    local checkTimer = 0
+    Events.OnTick.Add(function()
+        checkTimer = checkTimer + 1
+        if checkTimer >= 10 then -- Ждем 10 тиков для загрузки всех данных
+            
+            -- Проверяем, является ли игрок новым
+            local isNew, reasons = isFirstTimePlayer(playerObj)
+            local playerName = getPlayerUniqueID(playerObj)
+            
+            if isNew then
+                local logMessage = "[CursedSoul][FirstLogin] New player detected: " .. playerName
+                
+                -- Записываем в лог
+                print(logMessage)
+                
+                -- Получаем различные показатели для отладки
+                local debugInfo = {}
+                
+                if playerObj.getHoursSurvived then
+                    debugInfo.hoursSurvived = playerObj:getHoursSurvived()
+                end
+                
+                if playerObj.getZombieKills then
+                    debugInfo.zombieKills = playerObj:getZombieKills()
+                end
+                
+                if playerObj:getInventory() then
+                    debugInfo.inventorySize = playerObj:getInventory():getItems():size()
+                end
+                
+                if playerObj:getXp() then
+                    local xp = playerObj:getXp()
+                    local totalXP = 0
+                    for i = 0, PerkFactory.PerkList:size() - 1 do
+                        local perk = PerkFactory.PerkList:get(i)
+                        totalXP = totalXP + xp:getXP(perk)
+                    end
+                    debugInfo.totalXP = totalXP
+                end
+                
+                print("[CursedSoul][FirstLogin] Player stats - Hours: " .. tostring(debugInfo.hoursSurvived or "N/A") .. 
+                      ", Zombie kills: " .. tostring(debugInfo.zombieKills or "N/A") .. 
+                      ", Inventory items: " .. tostring(debugInfo.inventorySize or "N/A") .. 
+                      ", Total XP: " .. tostring(debugInfo.totalXP or "N/A"))
+            else
+                print("[CursedSoul][FirstLogin] Existing player detected: " .. playerName)
+                if #reasons > 0 then
+                    print("[CursedSoul][FirstLogin] Reasons why " .. playerName .. " is considered existing:")
+                    for i, reason in ipairs(reasons) do
+                        print("[CursedSoul][FirstLogin]   " .. i .. ". " .. reason)
+                    end
+                end
+            end
+            
+            -- Удаляем этот обработчик после проверки
+            return true
+        end
+    end)
+    
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     local uniqueID = getPlayerUniqueID(playerObj)
     modData[uniqueID] = modData[uniqueID] or {}
