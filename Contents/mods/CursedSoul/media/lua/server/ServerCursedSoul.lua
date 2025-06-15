@@ -139,7 +139,54 @@ Events.OnTick.Add(function()
     end
 end)
 
-CursedSoulDebug = false
+CursedSoulDebug = true
+
+-- Вспомогательная функция для подсчета элементов в таблице
+local function getTableLength(t)
+    if not t or type(t) ~= "table" then return 0 end
+    local count = 0
+    for _ in pairs(t) do
+        count = count + 1
+    end
+    return count
+end
+
+-- Вспомогательная функция для глубокого копирования таблицы
+local function deepCopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[deepCopy(orig_key)] = deepCopy(orig_value)
+        end
+        setmetatable(copy, deepCopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+
+-- Безопасное сохранение данных в ModData
+local function safeModDataSave(key, data)
+    local modData = ModData.getOrCreate(key)
+    for k, v in pairs(data) do
+        modData[k] = v
+    end
+    ModData.add(key, modData)
+    if isServer() then
+        ModData.transmit(key)
+    end
+end
+
+-- Безопасное получение данных из ModData
+local function safeModDataGet(key)
+    local modData = ModData.get(key)
+    if not modData then
+        modData = ModData.create(key)
+    end
+    return modData
+end
 
 local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
     if not playerObj or not playerObj:getXp() then return end
@@ -151,6 +198,9 @@ local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
                 local current = xp:getXP(perkType)
                 if current < base + gained then
                     xp:AddXP(perkType, (base + gained) - current, false, false, true)
+                    if CursedSoulDebug then
+                        print("[CursedSoul][DEBUG] Restored XP for perk " .. tostring(perkType) .. ": " .. tostring((base + gained) - current))
+                    end
                 end
             end
         end
@@ -159,13 +209,16 @@ end
 
 local function onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
     local ticks = 0
-    Events.OnTick.Add(function()
+    local tickHandler
+    tickHandler = function()
         ticks = ticks + 1
-        if ticks >= 2 then
+        if ticks >= 5 then -- Увеличил задержку для стабильности
             restoreCursedSoulXP(playerObj, modData, currentStartXP)
+            Events.OnTick.Remove(tickHandler)
             return true
         end
-    end)
+    end
+    Events.OnTick.Add(tickHandler)
 end
 
 local CursedSoulZombieKillsQueue = {}
@@ -185,55 +238,168 @@ end
 
 Events.OnTick.Add(tryRestoreZombieKills)
 
-Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
-    if not playerObj or not playerObj:getInventory() then return end
-    local modData = ModData.getOrCreate("CursedSoul_SavedXP")
+-- Инициализация при загрузке игры
+Events.OnGameStart.Add(function()
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Game started, checking ModData...")
+    end
+    
+    local modData = safeModDataGet("CursedSoul_SavedXP")
+    
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] ModData exists: " .. tostring(modData ~= nil))
+        if modData then
+            print("[CursedSoul][DEBUG] xpSavedFlag: " .. tostring(modData.xpSavedFlag))
+            print("[CursedSoul][DEBUG] needsResurrection: " .. tostring(modData.needsResurrection))
+            print("[CursedSoul][DEBUG] savedXP exists: " .. tostring(modData.savedXP ~= nil))
+            print("[CursedSoul][DEBUG] currentStartXP exists: " .. tostring(modData.currentStartXP ~= nil))
+            print("[CursedSoul][DEBUG] savedStartXP exists: " .. tostring(modData.savedStartXP ~= nil))
+            print("[CursedSoul][DEBUG] lastLifeGainedXP exists: " .. tostring(modData.lastLifeGainedXP ~= nil))
+            print("[CursedSoul][DEBUG] xpInitialized: " .. tostring(modData.xpInitialized))
+            
+            -- ДЕТАЛЬНЫЙ ВЫВОД СОДЕРЖИМОГО ModData
+            if modData.currentStartXP then
+                print("[CursedSoul][DEBUG] currentStartXP entries: " .. tostring(getTableLength(modData.currentStartXP)))
+            end
+            
+            if modData.savedStartXP then
+                print("[CursedSoul][DEBUG] savedStartXP entries: " .. tostring(getTableLength(modData.savedStartXP)))
+                if getTableLength(modData.savedStartXP) == 0 then
+                    print("[CursedSoul][DEBUG] savedStartXP is EMPTY!")
+                end
+            end
+            
+            if modData.lastLifeGainedXP then
+                print("[CursedSoul][DEBUG] lastLifeGainedXP entries: " .. tostring(getTableLength(modData.lastLifeGainedXP)))
+            end
+        end
+    end
+end)
 
-    if modData.savedStartXP and not modData.currentStartXP then
-        modData.currentStartXP = {}
-        for k, v in pairs(modData.savedStartXP) do
-            modData.currentStartXP[k] = v
+local function initializeStartXP(playerObj)
+    if not playerObj or not playerObj:getXp() then return {} end
+    
+    local xp = playerObj:getXp()
+    local startXP = {}
+    
+    for i=0, PerkFactory.PerkList:size()-1 do
+        local perk = PerkFactory.PerkList:get(i)
+        local perkType = perk:getType()
+        startXP[perkType] = xp:getXP(perkType)
+    end
+    
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Initialized start XP with " .. tostring(getTableLength(startXP)) .. " entries")
+    end
+    
+    return startXP
+end
+
+local function handlePlayerResurrection(playerIndex, playerObj)
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Checking for resurrection after game start...")
+    end
+    
+    local modData = safeModDataGet("CursedSoul_SavedXP")
+    
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] ModData in delayed check:")
+        print("[CursedSoul][DEBUG] - xpSavedFlag: " .. tostring(modData.xpSavedFlag))
+        print("[CursedSoul][DEBUG] - needsResurrection: " .. tostring(modData.needsResurrection))
+        print("[CursedSoul][DEBUG] - savedXP exists: " .. tostring(modData.savedXP ~= nil))
+        print("[CursedSoul][DEBUG] - currentStartXP exists: " .. tostring(modData.currentStartXP ~= nil))
+        print("[CursedSoul][DEBUG] - savedStartXP exists: " .. tostring(modData.savedStartXP ~= nil))
+        
+        if modData.currentStartXP then
+            print("[CursedSoul][DEBUG] - currentStartXP entries: " .. tostring(getTableLength(modData.currentStartXP)))
+        end
+        
+        if modData.savedStartXP then
+            print("[CursedSoul][DEBUG] - savedStartXP entries: " .. tostring(getTableLength(modData.savedStartXP)))
+            if getTableLength(modData.savedStartXP) == 0 then
+                print("[CursedSoul][DEBUG] - savedStartXP is EMPTY! Cannot restore data.")
+            end
         end
     end
 
-    if not modData.currentStartXP or modData.needsResurrection then
-        local xp = playerObj:getXp()
-        local currentStartXP = {}
-        for i=0, PerkFactory.PerkList:size()-1 do
-            local perk = PerkFactory.PerkList:get(i)
-            local perkType = perk:getType()
-            currentStartXP[perkType] = xp:getXP(perkType)
+    -- Инициализация для совершенно нового персонажа
+    if not modData.currentStartXP and not modData.savedStartXP and not modData.needsResurrection then
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] New character detected, initializing start XP...")
         end
+        
+        local startXP = initializeStartXP(playerObj)
+        
+        safeModDataSave("CursedSoul_SavedXP", {
+            currentStartXP = deepCopy(startXP),
+            savedStartXP = deepCopy(startXP),
+            xpInitialized = true
+        })
+        
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] Initialized start XP for new character with " .. tostring(getTableLength(startXP)) .. " entries")
+        end
+        
+        return
+    end
 
-        modData.currentStartXP = {}
-        for k, v in pairs(currentStartXP) do
-            modData.currentStartXP[k] = v
-        end
-        modData.savedStartXP = {}
-        for k, v in pairs(currentStartXP) do
-            modData.savedStartXP[k] = v
-        end
-        ModData.transmit("CursedSoul_SavedXP")
-
-        if modData.needsResurrection then
-            onPlayerCreatedRestoreXP(playerObj, modData, currentStartXP)
-            modData.needsResurrection = nil
-            ModData.transmit("CursedSoul_SavedXP")
+    -- Загружаем savedStartXP в currentStartXP если это необходимо
+    if modData.savedStartXP and type(modData.savedStartXP) == "table" and getTableLength(modData.savedStartXP) > 0 then
+        if not modData.currentStartXP or getTableLength(modData.currentStartXP) == 0 then
+            if CursedSoulDebug then
+                print("[CursedSoul][DEBUG] Loading savedStartXP to currentStartXP...")
+                print("[CursedSoul][DEBUG] savedStartXP entries count: " .. tostring(getTableLength(modData.savedStartXP)))
+            end
+            
+            modData.currentStartXP = deepCopy(modData.savedStartXP)
+            
+            safeModDataSave("CursedSoul_SavedXP", {
+                currentStartXP = modData.currentStartXP
+            })
+            
+            if CursedSoulDebug then
+                print("[CursedSoul][DEBUG] Loaded savedStartXP to currentStartXP and saved to ModData")
+                print("[CursedSoul][DEBUG] currentStartXP now has entries: " .. tostring(getTableLength(modData.currentStartXP)))
+            end
         end
     end
 
+    -- Обрабатываем воскрешение
+    if modData.needsResurrection then
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] Player needs resurrection, restoring XP...")
+        end
+        
+        local startXPForRestore = modData.currentStartXP or {}
+        onPlayerCreatedRestoreXP(playerObj, modData, startXPForRestore)
+        
+        safeModDataSave("CursedSoul_SavedXP", {
+            needsResurrection = nil
+        })
+    end
+
+    -- Восстановление убийств зомби
     if not modData.xpInitialized then
         if modData.savedZombieKills then
             CursedSoulZombieKillsQueue[playerIndex] = { kills = modData.savedZombieKills }
-            modData.savedZombieKills = nil
-            ModData.transmit("CursedSoul_SavedXP")
+            if CursedSoulDebug then
+                print("[CursedSoul][DEBUG] Queued zombie kills for restoration: " .. tostring(modData.savedZombieKills))
+            end
         end
-
-        modData.xpInitialized = true
-        ModData.transmit("CursedSoul_SavedXP")
+        
+        safeModDataSave("CursedSoul_SavedXP", {
+            xpInitialized = true,
+            savedZombieKills = nil
+        })
     end
 
+    -- Основная логика восстановления после смерти
     if modData.xpSavedFlag and type(modData.savedXP) == "table" and type(modData.currentStartXP) == "table" then
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] Restoring player after death...")
+        end
+        
+        -- Удаляем существующие CursedSoul предметы
         local inv = playerObj:getInventory()
         local items = inv:getItems()
         local toRemove = {}
@@ -247,21 +413,25 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             inv:Remove(item)
         end
 
+        -- Добавляем новый CursedSoul предмет
         playerObj:getInventory():AddItem("CursedSoul.CursedSoul")
+        
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] Added CursedSoul item to inventory")
+        end
 
-        modData.savedXP = nil
-        modData.xpSavedFlag = nil
-        ModData.transmit("CursedSoul_SavedXP")
-
+        -- Восстанавливаем вес
         if modData.savedWeight and playerObj.getNutrition then
             local nutrition = playerObj:getNutrition()
             if nutrition and nutrition.setWeight then
                 nutrition:setWeight(modData.savedWeight)
+                if CursedSoulDebug then
+                    print("[CursedSoul][DEBUG] Restored weight: " .. tostring(modData.savedWeight))
+                end
             end
-            modData.savedWeight = nil
-            ModData.transmit("CursedSoul_SavedXP")
         end
 
+        -- Обновляем черты характера в зависимости от веса
         if playerObj.getNutrition and playerObj.getTraits then
             local nutrition = playerObj:getNutrition()
             local traits = playerObj:getTraits()
@@ -280,13 +450,59 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
                 elseif weight <= 75 then
                     traits:add("Underweight")
                 end
+                if CursedSoulDebug then
+                    print("[CursedSoul][DEBUG] Updated weight traits for weight: " .. tostring(weight))
+                end
             end
         end
+        
+        -- Очищаем флаги восстановления
+        safeModDataSave("CursedSoul_SavedXP", {
+            savedXP = nil,
+            xpSavedFlag = nil,
+            savedWeight = nil
+        })
     end
+    
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Delayed resurrection check completed")
+        -- Перезагружаем данные для финальной проверки
+        modData = safeModDataGet("CursedSoul_SavedXP")
+        print("[CursedSoul][DEBUG] Final currentStartXP exists: " .. tostring(modData.currentStartXP ~= nil))
+        if modData.currentStartXP then
+            print("[CursedSoul][DEBUG] Final currentStartXP entries: " .. tostring(getTableLength(modData.currentStartXP)))
+        end
+    end
+end
+
+Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
+    if not playerObj or not playerObj:getInventory() then return end
+    
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Player created, index: " .. tostring(playerIndex))
+        print("[CursedSoul][DEBUG] Scheduling delayed resurrection check...")
+    end
+    
+    -- Планируем отложенную проверку после загрузки всех данных
+    local ticks = 0
+    local delayedCheckHandler
+    delayedCheckHandler = function()
+        ticks = ticks + 1
+        if ticks >= 15 then -- Увеличил задержку для стабильности
+            handlePlayerResurrection(playerIndex, playerObj)
+            Events.OnTick.Remove(delayedCheckHandler)
+        end
+    end
+    Events.OnTick.Add(delayedCheckHandler)
 end)
 
 Events.OnPlayerDeath.Add(function(playerObj)
     if not playerObj or not playerObj:getXp() then return end
+    
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Player died, saving data...")
+    end
+    
     local xp = playerObj:getXp()
     local xpTable = {}
     for i=0, PerkFactory.PerkList:size()-1 do
@@ -294,40 +510,66 @@ Events.OnPlayerDeath.Add(function(playerObj)
         local perkType = perk:getType()
         xpTable[perkType] = xp:getXP(perkType)
     end
-    local modData = ModData.getOrCreate("CursedSoul_SavedXP")
-    modData.savedXP = xpTable
-    modData.xpSavedFlag = true
-    modData.needsResurrection = true
+    
+    local modData = safeModDataGet("CursedSoul_SavedXP")
+    
+    -- Подготавливаем данные для сохранения
+    local dataToSave = {
+        savedXP = deepCopy(xpTable),
+        xpSavedFlag = true,
+        needsResurrection = true,
+        lastLifeGainedXP = {},
+        xpInitialized = nil -- Сбрасываем флаг инициализации
+    }
 
-    modData.lastLifeGainedXP = {}
+    -- Вычисляем полученный в текущей жизни XP
     local startXP = modData.currentStartXP or {}
     for perkType, deathAmount in pairs(xpTable) do
         local startAmount = startXP[perkType] or 0
         local gained = deathAmount - startAmount
-        modData.lastLifeGainedXP[perkType] = gained > 0 and gained or 0
+        dataToSave.lastLifeGainedXP[perkType] = gained > 0 and gained or 0
     end
 
+    -- Сохраняем вес
     if playerObj.getNutrition then
         local nutrition = playerObj:getNutrition()
         if nutrition and nutrition.getWeight then
-            modData.savedWeight = nutrition:getWeight()
+            dataToSave.savedWeight = nutrition:getWeight()
         end
     end
 
+    -- Сохраняем убийства зомби
     if playerObj.getZombieKills then
         local kills = playerObj:getZombieKills()
-        local modData = ModData.getOrCreate("CursedSoul_SavedXP")
-        modData.savedZombieKills = kills
-        ModData.transmit("CursedSoul_SavedXP")
-    end
-
-    if modData.currentStartXP then
-        modData.savedStartXP = {}
-        for k, v in pairs(modData.currentStartXP) do
-            modData.savedStartXP[k] = v
+        dataToSave.savedZombieKills = kills
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] Saving zombie kills: " .. tostring(kills))
         end
     end
+
+    -- Сохраняем текущий стартовый XP для следующей жизни
+    if modData.currentStartXP and type(modData.currentStartXP) == "table" and getTableLength(modData.currentStartXP) > 0 then
+        dataToSave.savedStartXP = deepCopy(modData.currentStartXP)
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] Saved currentStartXP to savedStartXP, entries: " .. tostring(getTableLength(dataToSave.savedStartXP)))
+        end
+    else
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] WARNING: currentStartXP is missing or invalid, initializing from current XP")
+        end
+        -- Если currentStartXP отсутствует, инициализируем его текущими значениями
+        dataToSave.savedStartXP = deepCopy(xpTable)
+    end
     
-    modData.xpInitialized = nil
-    ModData.transmit("CursedSoul_SavedXP")
+    -- Сохраняем все данные одним вызовом
+    safeModDataSave("CursedSoul_SavedXP", dataToSave)
+    
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Player death data saved successfully")
+        print("[CursedSoul][DEBUG] - xpSavedFlag: true")
+        print("[CursedSoul][DEBUG] - needsResurrection: true")
+        print("[CursedSoul][DEBUG] - savedXP entries: " .. tostring(getTableLength(dataToSave.savedXP)))
+        print("[CursedSoul][DEBUG] - savedStartXP entries: " .. tostring(getTableLength(dataToSave.savedStartXP)))
+        print("[CursedSoul][DEBUG] - lastLifeGainedXP entries: " .. tostring(getTableLength(dataToSave.lastLifeGainedXP)))
+    end
 end)
