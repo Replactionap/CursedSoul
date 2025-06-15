@@ -147,10 +147,13 @@ local function restoreCursedSoulXP(playerObj, modData, currentStartXP)
     if type(modData.lastLifeGainedXP) == "table" then
         for perkType, gained in pairs(modData.lastLifeGainedXP) do
             if gained > 0 then
-                local base = currentStartXP[perkType] or 0
-                local current = xp:getXP(perkType)
-                if current < base + gained then
-                    xp:AddXP(perkType, (base + gained) - current, false, false, true)
+                local perk = Perks.FromString(perkType)
+                if perk then
+                    local base = currentStartXP[perkType] or 0
+                    local current = xp:getXP(perk)
+                    if current < base + gained then
+                        xp:AddXP(perk, (base + gained) - current, false, false, true)
+                    end
                 end
             end
         end
@@ -201,8 +204,9 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         local currentStartXP = {}
         for i=0, PerkFactory.PerkList:size()-1 do
             local perk = PerkFactory.PerkList:get(i)
-            local perkType = perk:getType()
-            currentStartXP[perkType] = xp:getXP(perkType)
+            -- Use string key for perk type
+            local perkType = perk:getType():toString()
+            currentStartXP[perkType] = xp:getXP(perk)
         end
 
         modData.currentStartXP = {}
@@ -212,6 +216,13 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         modData.savedStartXP = {}
         for k, v in pairs(currentStartXP) do
             modData.savedStartXP[k] = v
+        end
+        -- Debug print to verify XP table
+        if CursedSoulDebug then
+            print("[CursedSoul][DEBUG] Saved currentStartXP:")
+            for k, v in pairs(currentStartXP) do
+                print("  " .. tostring(k) .. " = " .. tostring(v))
+            end
         end
         ModData.transmit("CursedSoul_SavedXP")
 
@@ -291,8 +302,16 @@ Events.OnPlayerDeath.Add(function(playerObj)
     local xpTable = {}
     for i=0, PerkFactory.PerkList:size()-1 do
         local perk = PerkFactory.PerkList:get(i)
-        local perkType = perk:getType()
-        xpTable[perkType] = xp:getXP(perkType)
+        -- Use string key for perk type
+        local perkType = perk:getType():toString()
+        xpTable[perkType] = xp:getXP(perk)
+    end
+    -- Debug print to verify XP table
+    if CursedSoulDebug then
+        print("[CursedSoul][DEBUG] Saved XP on death:")
+        for k, v in pairs(xpTable) do
+            print("  " .. tostring(k) .. " = " .. tostring(v))
+        end
     end
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     modData.savedXP = xpTable
