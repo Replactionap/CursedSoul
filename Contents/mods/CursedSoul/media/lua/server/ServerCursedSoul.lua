@@ -139,7 +139,7 @@ Events.OnTick.Add(function()
     end
 end)
 
-CursedSoulDebug = true
+CursedSoulDebug = false
 
 local function isFirstTimePlayer(playerObj)
     if not playerObj then
