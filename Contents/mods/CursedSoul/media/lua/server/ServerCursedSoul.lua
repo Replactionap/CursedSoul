@@ -167,7 +167,7 @@ local function isFirstTimePlayer(playerObj)
             if CursedSoulDebug then
                 print("[CursedSoul][FirstLogin] " .. playerName .. " - Hours survived: " .. tostring(hoursSurvived))
             end
-            if hoursSurvived >= 0.1 then -- 6 минут или больше игрового времени
+            if hoursSurvived >= 0.01 then -- 6 минут или больше игрового времени
                 table.insert(reasons, "Hours survived >= 0.1 (" .. tostring(hoursSurvived) .. ")")
                 if CursedSoulDebug then
                     print("[CursedSoul][FirstLogin] " .. playerName .. " is existing player - reason: Hours survived")
@@ -278,67 +278,79 @@ end
 
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
-    
+
     -- Проверяем первый вход с задержкой для корректной загрузки данных
     local checkTimer = 0
-    Events.OnTick.Add(function()
+    local firstLoginChecked = false
+    local checkFirstTimeHandler
+    checkFirstTimeHandler = function()
+        if firstLoginChecked then
+            return true -- уже проверено, удаляем обработчик
+        end
         checkTimer = checkTimer + 1
         if checkTimer >= 10 then -- Ждем 10 тиков для загрузки всех данных
-            
+
             -- Проверяем, является ли игрок новым
             local isNew, reasons = isFirstTimePlayer(playerObj)
             local playerName = getPlayerUniqueID(playerObj)
-            
-            if isNew then
-                local logMessage = "[CursedSoul][FirstLogin] New player detected: " .. playerName
-                
-                -- Записываем в лог
-                print(logMessage)
-                
-                -- Получаем различные показатели для отладки
-                local debugInfo = {}
-                
-                if playerObj.getHoursSurvived then
-                    debugInfo.hoursSurvived = playerObj:getHoursSurvived()
-                end
-                
-                if playerObj.getZombieKills then
-                    debugInfo.zombieKills = playerObj:getZombieKills()
-                end
-                
-                if playerObj:getInventory() then
-                    debugInfo.inventorySize = playerObj:getInventory():getItems():size()
-                end
-                
-                if playerObj:getXp() then
-                    local xp = playerObj:getXp()
-                    local totalXP = 0
-                    for i = 0, PerkFactory.PerkList:size() - 1 do
-                        local perk = PerkFactory.PerkList:get(i)
-                        totalXP = totalXP + xp:getXP(perk)
+
+            -- Проверяем, что проверка прошла по всем условиям (например, есть хотя бы одна причина или явно новый)
+            if isNew or (#reasons > 0) then
+                firstLoginChecked = true
+
+                if isNew then
+                    local logMessage = "[CursedSoul][FirstLogin] New player detected: " .. playerName
+
+                    -- Записываем в лог
+                    print(logMessage)
+
+                    -- Получаем различные показатели для отладки
+                    local debugInfo = {}
+
+                    if playerObj.getHoursSurvived then
+                        debugInfo.hoursSurvived = playerObj:getHoursSurvived()
                     end
-                    debugInfo.totalXP = totalXP
-                end
-                
-                print("[CursedSoul][FirstLogin] Player stats - Hours: " .. tostring(debugInfo.hoursSurvived or "N/A") .. 
-                      ", Zombie kills: " .. tostring(debugInfo.zombieKills or "N/A") .. 
-                      ", Inventory items: " .. tostring(debugInfo.inventorySize or "N/A") .. 
-                      ", Total XP: " .. tostring(debugInfo.totalXP or "N/A"))
-            else
-                print("[CursedSoul][FirstLogin] Existing player detected: " .. playerName)
-                if #reasons > 0 then
-                    print("[CursedSoul][FirstLogin] Reasons why " .. playerName .. " is considered existing:")
-                    for i, reason in ipairs(reasons) do
-                        print("[CursedSoul][FirstLogin]   " .. i .. ". " .. reason)
+
+                    if playerObj.getZombieKills then
+                        debugInfo.zombieKills = playerObj:getZombieKills()
+                    end
+
+                    if playerObj:getInventory() then
+                        debugInfo.inventorySize = playerObj:getInventory():getItems():size()
+                    end
+
+                    if playerObj:getXp() then
+                        local xp = playerObj:getXp()
+                        local totalXP = 0
+                        for i = 0, PerkFactory.PerkList:size() - 1 do
+                            local perk = PerkFactory.PerkList:get(i)
+                            totalXP = totalXP + xp:getXP(perk)
+                        end
+                        debugInfo.totalXP = totalXP
+                    end
+
+                    print("[CursedSoul][FirstLogin] Player stats - Hours: " .. tostring(debugInfo.hoursSurvived or "N/A") ..
+                          ", Zombie kills: " .. tostring(debugInfo.zombieKills or "N/A") ..
+                          ", Inventory items: " .. tostring(debugInfo.inventorySize or "N/A") ..
+                          ", Total XP: " .. tostring(debugInfo.totalXP or "N/A"))
+                else
+                    print("[CursedSoul][FirstLogin] Existing player detected: " .. playerName)
+                    if #reasons > 0 then
+                        print("[CursedSoul][FirstLogin] Reasons why " .. playerName .. " is considered existing:")
+                        for i, reason in ipairs(reasons) do
+                            print("[CursedSoul][FirstLogin]   " .. i .. ". " .. reason)
+                        end
                     end
                 end
+
+                -- Удаляем этот обработчик после проверки
+                return true
             end
-            
-            -- Удаляем этот обработчик после проверки
-            return true
+            -- Если не смогли принять решение, продолжаем ждать (например, данные ещё не загружены)
         end
-    end)
-    
+    end
+    Events.OnTick.Add(checkFirstTimeHandler)
+
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     local uniqueID = getPlayerUniqueID(playerObj)
     modData[uniqueID] = modData[uniqueID] or {}
