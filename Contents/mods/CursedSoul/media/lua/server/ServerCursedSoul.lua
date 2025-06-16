@@ -139,7 +139,7 @@ Events.OnTick.Add(function()
     end
 end)
 
-CursedSoulDebug = false
+CursedSoulDebug = true
 
 local function isFirstTimePlayer(playerObj)
     if not playerObj then
@@ -262,7 +262,6 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         end
         checkTimer = checkTimer + 1
         if checkTimer >= 10 then
-
             local isNew, reasons = isFirstTimePlayer(playerObj)
             local playerName = getPlayerUniqueID(playerObj)
 
@@ -305,18 +304,18 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
                               ", Zombie kills: " .. tostring(debugInfo.zombieKills or "N/A") ..
                               ", Inventory items: " .. tostring(debugInfo.inventorySize or "N/A") ..
                               ", Total XP: " .. tostring(debugInfo.totalXP or "N/A"))
-                    else
-                        print("[CursedSoul][FirstLogin] Existing player detected: " .. playerName)
-                        if #reasons > 0 then
-                            if CursedSoulDebug then
-                                print("[CursedSoul][FirstLogin] Reasons why " .. playerName .. " is considered existing:")
-                                for i, reason in ipairs(reasons) do
-                                    print("[CursedSoul][FirstLogin]   " .. i .. ". " .. reason)
-                                end
+                    end
+                else
+                    print("[CursedSoul][FirstLogin] Existing player detected: " .. playerName)
+                    if #reasons > 0 then
+                        if CursedSoulDebug then
+                            print("[CursedSoul][FirstLogin] Reasons why " .. playerName .. " is considered existing:")
+                            for i, reason in ipairs(reasons) do
+                                print("[CursedSoul][FirstLogin]   " .. i .. ". " .. reason)
                             end
                         end
                     end
-
+                end
                 return true
             end
         end
