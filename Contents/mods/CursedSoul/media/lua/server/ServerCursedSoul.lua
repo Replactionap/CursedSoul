@@ -272,7 +272,9 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
                 if isNew then
                     local logMessage = "[CursedSoul][FirstLogin] New player detected: " .. playerName
 
-                    print(logMessage)
+                    if CursedSoulDebug then
+                        print(logMessage)
+                    end
 
                     local debugInfo = {}
 
@@ -298,19 +300,22 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
                         debugInfo.totalXP = totalXP
                     end
 
-                    print("[CursedSoul][FirstLogin] Player stats - Hours: " .. tostring(debugInfo.hoursSurvived or "N/A") ..
-                          ", Zombie kills: " .. tostring(debugInfo.zombieKills or "N/A") ..
-                          ", Inventory items: " .. tostring(debugInfo.inventorySize or "N/A") ..
-                          ", Total XP: " .. tostring(debugInfo.totalXP or "N/A"))
-                else
-                    print("[CursedSoul][FirstLogin] Existing player detected: " .. playerName)
-                    if #reasons > 0 then
-                        print("[CursedSoul][FirstLogin] Reasons why " .. playerName .. " is considered existing:")
-                        for i, reason in ipairs(reasons) do
-                            print("[CursedSoul][FirstLogin]   " .. i .. ". " .. reason)
+                    if CursedSoulDebug then
+                        print("[CursedSoul][FirstLogin] Player stats - Hours: " .. tostring(debugInfo.hoursSurvived or "N/A") ..
+                              ", Zombie kills: " .. tostring(debugInfo.zombieKills or "N/A") ..
+                              ", Inventory items: " .. tostring(debugInfo.inventorySize or "N/A") ..
+                              ", Total XP: " .. tostring(debugInfo.totalXP or "N/A"))
+                    else
+                        print("[CursedSoul][FirstLogin] Existing player detected: " .. playerName)
+                        if #reasons > 0 then
+                            if CursedSoulDebug then
+                                print("[CursedSoul][FirstLogin] Reasons why " .. playerName .. " is considered existing:")
+                                for i, reason in ipairs(reasons) do
+                                    print("[CursedSoul][FirstLogin]   " .. i .. ". " .. reason)
+                                end
+                            end
                         end
                     end
-                end
 
                 return true
             end
@@ -321,7 +326,9 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     -- === ERROR HANDLER FOR MODDATA ===
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     if not modData then
-        print("[CursedSoul][ERROR] ModData CursedSoul_SavedXP is nil!")
+        if CursedSoulDebug then
+            print("[CursedSoul][ERROR] ModData CursedSoul_SavedXP is nil!")
+        end
     end
     local uniqueID = getPlayerUniqueID(playerObj)
     if not modData or not modData[uniqueID] then
@@ -340,7 +347,9 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             for k, v in pairs(playerData.currentStartXP) do
                 playerData.savedStartXP[k] = v
             end
-            print("[CursedSoul][ERROR HANDLER] No modData for existing player " .. tostring(uniqueID) .. ", setting all start XP to 0")
+            if CursedSoulDebug then
+                print("[CursedSoul][ERROR HANDLER] No modData for existing player " .. tostring(uniqueID) .. ", setting all start XP to 0")
+            end
             ModData.transmit("CursedSoul_SavedXP")
         end
     end
