@@ -139,9 +139,7 @@ Events.OnTick.Add(function()
     end
 end)
 
-CursedSoulDebug = true
-
-CursedSoulTimestamp = os.time()
+CursedSoulDebug = false
 
 local function isFirstTimePlayer(playerObj)
     if not playerObj then
@@ -157,7 +155,6 @@ local function isFirstTimePlayer(playerObj)
     end
     
     local reasons = {}
-    
     
     if playerObj.getHoursSurvived then
         local success, hoursSurvived = pcall(function() return playerObj:getHoursSurvived() end)
@@ -191,7 +188,6 @@ local function isFirstTimePlayer(playerObj)
         end
     end
 
-    
     if CursedSoulDebug then
         print("[CursedSoul][FirstLogin] " .. playerName .. " is NEW player - all checks passed")
     end
@@ -245,13 +241,6 @@ end
 
 Events.OnTick.Add(tryRestoreZombieKills)
 
-local function getPlayerUniqueID(playerObj)
-    if playerObj and playerObj.getUsername then
-        return tostring(playerObj:getUsername())
-    end
-    return "unknown"
-end
-
 Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
     if not playerObj or not playerObj:getInventory() then return end
 
@@ -265,7 +254,10 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         checkTimer = checkTimer + 1
         if checkTimer >= 10 then
             local isNew, reasons = isFirstTimePlayer(playerObj)
-            local playerName = getPlayerUniqueID(playerObj)
+            local playerName = "Player" .. tostring(playerIndex)
+            if playerObj.getUsername then
+                playerName = tostring(playerObj:getUsername()) or playerName
+            end
 
             if isNew or (#reasons > 0) then
                 firstLoginChecked = true
@@ -318,46 +310,27 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
                         end
                     end
                 end
+
                 return true
             end
         end
     end
     Events.OnTick.Add(checkFirstTimeHandler)
 
-    -- === ERROR HANDLER FOR MODDATA ===
+    -- === MODDATA HANDLING ===
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
     if not modData then
         if CursedSoulDebug then
             print("[CursedSoul][ERROR] ModData CursedSoul_SavedXP is nil!")
         end
+        return
     end
 
-    -- Время создания теперь ключ таблицы modData
-    local function getCreationTimestamp(tbl)
-        for k, v in pairs(tbl) do
-            if type(k) == "number" then
-                return k
-            end
-        end
-        return nil
-    end
-
-    local creationTime = getCreationTimestamp(modData)
-    if not creationTime then
-        local now = os.time()
-        modData[now] = true -- или nil, если хотите
-        if CursedSoulDebug then
-            print("[CursedSoul][DEBUG] Set creation timestamp as key in modData: " .. tostring(now))
-        end
-        ModData.transmit("CursedSoul_SavedXP")
-        creationTime = now
-    end
-
-    -- Remove uniqueID usage, use modData directly
-    if not modData or not modData.currentStartXP then
+    -- Проверяем, есть ли данные для этого игрока
+    if not modData.currentStartXP then
         local isNew, _ = isFirstTimePlayer(playerObj)
         if not isNew then
-            modData = modData or {}
+            -- Это существующий игрок без данных - инициализируем с нулевыми значениями
             modData.currentStartXP = {}
             for i=0, PerkFactory.PerkList:size()-1 do
                 local perk = PerkFactory.PerkList:get(i)
@@ -374,9 +347,8 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             ModData.transmit("CursedSoul_SavedXP")
         end
     end
-    -- === ERROR HANDLER FOR MODDATA ===
 
-    -- Use modData directly
+    -- Восстанавливаем currentStartXP из savedStartXP если нужно
     if modData.savedStartXP and not modData.currentStartXP then
         modData.currentStartXP = {}
         for k, v in pairs(modData.savedStartXP) do
@@ -384,6 +356,7 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         end
     end
 
+    -- Инициализация для нового игрока или после воскрешения
     if not modData.currentStartXP or modData.needsResurrection then
         local xp = playerObj:getXp()
         local currentStartXP = {}
@@ -416,6 +389,7 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         end
     end
 
+    -- Восстановление zombie kills
     if not modData.xpInitialized then
         if modData.savedZombieKills then
             CursedSoulZombieKillsQueue[playerIndex] = { kills = modData.savedZombieKills }
@@ -427,6 +401,7 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         ModData.transmit("CursedSoul_SavedXP")
     end
 
+    -- Выдача CursedSoul после смерти
     if modData.xpSavedFlag and type(modData.savedXP) == "table" and type(modData.currentStartXP) == "table" then
         local inv = playerObj:getInventory()
         local items = inv:getItems()
@@ -447,6 +422,7 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
         modData.xpSavedFlag = nil
         ModData.transmit("CursedSoul_SavedXP")
 
+        -- Восстановление веса
         if modData.savedWeight and playerObj.getNutrition then
             local nutrition = playerObj:getNutrition()
             if nutrition and nutrition.setWeight then
@@ -456,6 +432,7 @@ Events.OnCreatePlayer.Add(function(playerIndex, playerObj)
             ModData.transmit("CursedSoul_SavedXP")
         end
 
+        -- Обновление трейтов веса
         if playerObj.getNutrition and playerObj.getTraits then
             local nutrition = playerObj:getNutrition()
             local traits = playerObj:getTraits()
@@ -481,6 +458,7 @@ end)
 
 Events.OnPlayerDeath.Add(function(playerObj)
     if not playerObj or not playerObj:getXp() then return end
+    
     local xp = playerObj:getXp()
     local xpTable = {}
     for i=0, PerkFactory.PerkList:size()-1 do
@@ -488,18 +466,20 @@ Events.OnPlayerDeath.Add(function(playerObj)
         local perkType = perk:getType():toString()
         xpTable[perkType] = xp:getXP(perk)
     end
+    
     if CursedSoulDebug then
         print("[CursedSoul][DEBUG] Saved XP on death:")
         for k, v in pairs(xpTable) do
             print("  " .. tostring(k) .. " = " .. tostring(v))
         end
     end
+    
     local modData = ModData.getOrCreate("CursedSoul_SavedXP")
-    -- Remove uniqueID usage, use modData directly
     modData.savedXP = xpTable
     modData.xpSavedFlag = true
     modData.needsResurrection = true
 
+    -- Расчет полученного XP за эту жизнь
     modData.lastLifeGainedXP = {}
     local startXP = modData.currentStartXP or {}
     for perkType, deathAmount in pairs(xpTable) do
@@ -508,6 +488,7 @@ Events.OnPlayerDeath.Add(function(playerObj)
         modData.lastLifeGainedXP[perkType] = gained > 0 and gained or 0
     end
 
+    -- Сохранение веса
     if playerObj.getNutrition then
         local nutrition = playerObj:getNutrition()
         if nutrition and nutrition.getWeight then
@@ -515,12 +496,13 @@ Events.OnPlayerDeath.Add(function(playerObj)
         end
     end
 
+    -- Сохранение zombie kills
     if playerObj.getZombieKills then
         local kills = playerObj:getZombieKills()
         modData.savedZombieKills = kills
-        ModData.transmit("CursedSoul_SavedXP")
     end
 
+    -- Сохранение текущего startXP как savedStartXP
     if modData.currentStartXP then
         modData.savedStartXP = {}
         for k, v in pairs(modData.currentStartXP) do
