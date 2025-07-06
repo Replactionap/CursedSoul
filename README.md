@@ -37,7 +37,7 @@ How many bodies will you inhabit before you truly die?
 
 - **Singleplayer:** ✅  
 - **Multiplayer:** ✅  
-- **Build 42:** ❓
+- **Build 42:** ✅
 
 ---
 
